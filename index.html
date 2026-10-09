@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Agente vocal para consultar información de IPS en Colombia">
+  <title>Agente Vocal IPS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#main-content" aria-label="Ir al inicio">
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <span>
+          <strong>Agente Vocal IPS</strong>
+          <small>Consulta inteligente para Colombia</small>
+        </span>
+      </a>
+      <div class="status-pill"><span class="status-dot"></span> Servicio disponible</div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sessions-panel" aria-label="Sesiones">
+        <div class="panel-heading">
+          <div>
+            <span class="eyebrow">Tu espacio</span>
+            <h2>Sesiones</h2>
+          </div>
+          <button class="icon-button" id="new-session" title="Nueva sesión" aria-label="Nueva sesión">＋</button>
+        </div>
+        <button class="new-session-button" id="new-session-secondary"><span>＋</span> Nueva sesión</button>
+        <div class="session-list" id="session-list" aria-live="polite"></div>
+        <div class="sessions-footer"><span class="footer-spark">✦</span> Tus consultas, en un solo lugar</div>
+      </aside>
+
+      <main class="main-content" id="main-content">
+        <section class="welcome-block">
+          <span class="eyebrow">Asistente de voz</span>
+          <h1>¿En qué IPS te<br><em>puedo ayudar?</em></h1>
+          <p>Habla naturalmente. Te ayudaré a encontrar información de instituciones prestadoras de salud en Colombia.</p>
+        </section>
+
+        <section class="voice-card" aria-label="Entrada de voz">
+          <div class="voice-card-top">
+            <span class="input-label"><span class="mic-mini">◉</span> Entrada de consulta</span>
+            <span class="recording-state" id="recording-state">Listo para escuchar</span>
+          </div>
+          <div class="voice-stage" id="voice-stage">
+            <div class="waveform" id="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <button class="mic-button" id="mic-button" title="Comenzar a grabar" aria-label="Comenzar a grabar"><span>●</span></button>
+            <p id="voice-prompt">Pulsa para hablar</p>
+            <small>También puedes escribir tu consulta abajo</small>
+          </div>
+          <form class="text-input-row" id="query-form">
+            <input id="query-input" type="text" autocomplete="off" placeholder="Ej. ¿Qué IPS hay cerca de Chapinero?" aria-label="Escribe tu consulta">
+            <button class="send-button" type="submit" title="Enviar consulta" aria-label="Enviar consulta">↑</button>
+          </form>
+        </section>
+
+        <section class="conversation-section">
+          <div class="section-heading"><span class="eyebrow">Actividad reciente</span><span id="message-count">0 mensajes</span></div>
+          <div class="conversation" id="conversation" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
