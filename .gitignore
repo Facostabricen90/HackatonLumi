@@ -1,0 +1,63 @@
+
+# ==============================
+# Entornos virtuales de Python
+# ==============================
+lumienv/
+venv/
+.venv/
+env/
+
+# ==============================
+# Variables de entorno y secretos
+# ==============================
+.env
+.env.*
+!.env.example
+
+# ==============================
+# Python: caché y archivos compilados
+# ==============================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# ==============================
+# Distribución y paquetes
+# ==============================
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+
+# ==============================
+# Herramientas y testing
+# ==============================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==============================
+# Editores e IDEs
+# ==============================
+.vscode/*
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+
+# ==============================
+# Logs y archivos temporales
+# ==============================
+*.log
+*.tmp
+*.bak
+
+# ==============================
+# Sistema operativo
+# ==============================
+.DS_Store
+Thumbs.db
