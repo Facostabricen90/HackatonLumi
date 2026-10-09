@@ -33,6 +33,11 @@ SEARCH_FIELD_MAP = {
     "todos": None,
 }
 
+PRESTADOR_ALIASES = {
+    "COMFACALDAS": "CAJA DE COMPENSACION FAMILIAR DE CALDAS",
+    "CONFA": "CAJA DE COMPENSACION FAMILIAR DE CALDAS",
+}
+
 QUALITATIVE_FIELDS = (
     "departamento, municipio, c_digo_prestador, nombre_prestador, nit_ips, "
     "naturaleza, c_digo_sede, n_mero_sede, nom_sede_ips, gerente, direcci_n, "
@@ -105,6 +110,9 @@ def _contains_clause(field: str, value: str) -> str:
             return "naturaleza like 'Privad%'"
 
     if field in {"nombre_prestador", "nom_grupo_capacidad", "nom_descripcion_capacidad"}:
+        if field == "nombre_prestador":
+            value = PRESTADOR_ALIASES.get(normalized, value)
+            normalized = clean_text(value)
         return f"upper({field}) like '%{_escape_literal(normalized)}%'"
 
     canonical = MUNICIPIOS_CANONICOS.get(normalized, value)
@@ -140,6 +148,8 @@ def _inferir_intencion(pregunta: str) -> tuple[str | None, int | None, dict[str,
         metric = "registros"
     elif "CAPACIDAD" in normalized or "CAMAS" in normalized or "CONSULTORIOS" in normalized:
         metric = "capacidad"
+    elif "SERVICIO" in normalized:
+        metric = "servicios_prestador"
     elif "IPS" in normalized or "PRESTADORES" in normalized or "INSTITUCIONES" in normalized:
         metric = "ips_unicas"
     else:
@@ -149,6 +159,10 @@ def _inferir_intencion(pregunta: str) -> tuple[str | None, int | None, dict[str,
     for normalized_name, canonical_name in MUNICIPIOS_CANONICOS.items():
         if re.search(rf"\b{re.escape(normalized_name)}\b", normalized):
             inferred_filters["municipio"] = canonical_name
+            break
+    for alias, canonical_name in PRESTADOR_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", normalized):
+            inferred_filters["prestador"] = canonical_name
             break
     return metric, threshold, inferred_filters
 
@@ -227,6 +241,31 @@ class SocrataIPS:
         query_params = {"$where": where}
         if consulta.strip() and not search_field and not provider_detail:
             query_params["$q"] = consulta.strip()
+        if metrica == "servicios_prestador":
+            servicios = self._get({
+                **query_params,
+                "$select": "nom_descripcion_capacidad, count(*) as registros_servicio, sum(num_cantidad_capacidad_instalada) as capacidad_servicio",
+                "$group": "nom_descripcion_capacidad",
+                "$order": "nom_descripcion_capacidad ASC",
+                "$limit": 50000,
+            })
+            return {
+                "fuente": "datos.gov.co / s2ru-bqt6",
+                "consulta_en_vivo": True,
+                "metrica_solicitada": "servicios_prestador",
+                "resultado_principal": {"valor": len(servicios), "unidad": "servicios únicos"},
+                "prestador_consultado": filtros.get("prestador"),
+                "filtros_aplicados": {key: value for key, value in filtros.items() if value},
+                "servicios": [
+                    {
+                        "servicio": row.get("nom_descripcion_capacidad"),
+                        "registros": int(_number(row.get("registros_servicio"))),
+                        "capacidad_total": _number(row.get("capacidad_servicio")),
+                    }
+                    for row in servicios
+                ],
+                "muestra_completa": True,
+            }
         if metrica == "umbral_servicios" or umbral_servicios is not None:
             threshold = max(int(umbral_servicios or 0), 0)
             grouped = self._get({

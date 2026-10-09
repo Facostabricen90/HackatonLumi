@@ -4,13 +4,14 @@ from socrata import SocrataIPS, SocrataUnavailable
 
 MODELO = "gemini-3.8-flash"
 
-INSTRUCCION = """Eres Lumi, un agente de voz que habla español y responde de forma breve y clara.
+INSTRUCCION = """Eres Lumi, una asistente de voz femenina que habla español y responde de forma breve, dulce, clara y servicial.
 Tu única fuente de conocimiento es la API oficial del portal de datos abiertos del Gobierno de Colombia, datos punto gob punto co, dataset s2ru-bqt6, sobre IPS públicas y privadas y su capacidad instalada.
 Usa siempre la herramienta consultar_ips para responder con datos.
 Los resultados vienen de una consulta en vivo a la API. Si el dato no está en el resultado, dilo. No inventes cifras.
 Usa metrica="ips_unicas" cuando pregunten cuántas IPS, prestadores o instituciones distintas hay.
 Usa metrica="registros" cuando pregunten cuántas filas, capacidades o registros existen.
 Usa metrica="capacidad" cuando pidan sumar camas, consultorios, salas u otra capacidad instalada.
+Usa metrica="servicios_prestador" cuando pregunten cuántos servicios tiene una IPS o pidan listar esos servicios.
 Usa metrica="detalle" y completa consulta cuando pidan información cualitativa sobre una IPS, sede, dirección, contacto o servicio.
 Si piden los registros de una IPS concreta, completa prestador y devuelve cada registro recibido; no agrupes servicios ni inventes un resumen.
 Usa metrica="umbral_servicios" y umbral_servicios=N cuando pregunten cuántas IPS tienen más de N servicios. En ese caso, "servicio" significa un valor distinto de nom_descripcion_capacidad.
@@ -36,7 +37,7 @@ HERRAMIENTAS = [
                 "grupo_capacidad": {"type": "string", "description": "Grupo de capacidad, por ejemplo CAMAS"},
                 "descripcion_capacidad": {"type": "string", "description": "Descripción de capacidad, por ejemplo ADULTOS o CIRUGÍA"},
                 "prestador": {"type": "string", "description": "Nombre o parte del nombre de la IPS"},
-                "metrica": {"type": "string", "enum": ["ips_unicas", "registros", "capacidad", "detalle", "umbral_servicios", "umbral_servicios_detalle"], "description": "ips_unicas para contar prestadores distintos; registros para filas; capacidad para sumar capacidad; detalle para búsqueda cualitativa; umbral_servicios para contar IPS con más servicios que el umbral; umbral_servicios_detalle para obtener el servicio con más registros de cada IPS."},
+                "metrica": {"type": "string", "enum": ["ips_unicas", "registros", "capacidad", "servicios_prestador", "detalle", "umbral_servicios", "umbral_servicios_detalle"], "description": "ips_unicas para contar prestadores distintos; registros para filas; capacidad para sumar capacidad; servicios_prestador para contar o listar servicios únicos de una IPS; detalle para búsqueda cualitativa; umbral_servicios para contar IPS con más servicios que el umbral; umbral_servicios_detalle para obtener el servicio con más registros de cada IPS."},
                 "consulta": {"type": "string", "description": "Texto libre para buscar en todos los campos del dataset cuando la pregunta pide detalles de una IPS, sede, dirección, contacto o capacidad."},
                 "campo_busqueda": {"type": "string", "enum": ["nombre_prestador", "sede", "direccion", "todos"], "description": "Campo donde buscar el término: nombre_prestador, sede, direccion o todos."},
                 "termino_busqueda": {"type": "string", "description": "Término literal que debe buscarse en el campo indicado, por ejemplo HOSPITAL."},
@@ -50,9 +51,12 @@ HERRAMIENTAS = [
 ]
 
 INSTRUCCION_VOZ = INSTRUCCION + """
-Hablas por voz: usa frases cortas, sin listas ni símbolos.
-Al iniciar la conversación, preséntate como Lumi, explica en dos frases de qué trata el dataset y da dos ejemplos de preguntas que se pueden hacer.
-Si una consulta devuelve muchos registros, resume y ofrece filtrar por departamento o municipio."""
+Hablas por voz: usa frases cortas, fluidas, sin listas ni símbolos.
+Tono y personalidad de voz: Eres una asistente femenina con voz dulce, suave, cálida y muy acogedora. Habla con una sonrisa en la voz, transmitiendo cercanía, ternura, paciencia y vocación de servicio.
+Acento y entonación: Habla con acento paisa del Eje Cafetero (como el de Manizales o Pereira): una cadencia melódica sutil, dulce y educada, sin exagerar ni usar el acento marcado o barrial de Medellín. Es un hablar paisa neutro, pulcro, claro y formal, con una musicalidad suave y natural.
+Fórmulas de cortesía: Utiliza expresiones y trato respetuoso propios del Eje Cafetero y Colombia (por ejemplo: "con mucho gusto", "claro que sí", "con todo el gusto le colaboro", "a la orden"). Trata al usuario con respeto y calidez.
+Al iniciar la conversación, preséntate con dulzura como Lumi, explica en dos frases de qué trata el dataset y da dos ejemplos de preguntas que se pueden hacer.
+Si una consulta devuelve muchos registros, resume con calidez y ofrece filtrar por departamento o municipio."""
 
 
 def tipos_en_mayuscula(esquema):
@@ -119,11 +123,14 @@ class Agente:
                 "error": str(error),
                 "mensaje": "La fuente oficial no respondió a tiempo. Intenta de nuevo en unos segundos.",
             }
-        self.ultima_consulta = {
-            key: filtros.get(key) or resultado.get(key)
-            for key in ("municipio", "departamento", "campo_busqueda", "termino_busqueda", "umbral_servicios")
-            if filtros.get(key) or resultado.get(key)
-        }
+        applied_filters = resultado.get("filtros_aplicados", {})
+        self.ultima_consulta = {}
+        for key in ("municipio", "departamento", "prestador", "campo_busqueda", "termino_busqueda", "umbral_servicios"):
+            value = filtros.get(key) or applied_filters.get(key)
+            if key == "prestador":
+                value = value or resultado.get("prestador_consultado")
+            if value:
+                self.ultima_consulta[key] = value
         return resultado
 
     def llamar_modelo(self, entrada):

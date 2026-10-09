@@ -11,6 +11,7 @@ from agent import Agente, INSTRUCCION_VOZ, HERRAMIENTAS_VOZ
 load_dotenv(dotenv_path=Path(__file__).with_name(".env"), override=True)
 
 MODELO_VOZ = "gemini-3.8-live"
+VOZ_DEFECTO = os.getenv("VOZ_GEMINI", "Aoede")
 
 app = FastAPI()
 frontend_origins = [origin.strip() for origin in os.getenv("FRONTEND_ORIGINS", "*").split(",") if origin.strip()]
@@ -39,6 +40,7 @@ def crear_sesion():
     return {
         "token": token.name,
         "modelo": MODELO_VOZ,
+        "voz": VOZ_DEFECTO,
         "instruccion": f"{INSTRUCCION_VOZ}\n\n{agente.perfil()}",
         "herramientas": HERRAMIENTAS_VOZ,
     }
