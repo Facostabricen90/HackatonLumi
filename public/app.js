@@ -137,7 +137,9 @@ async function analyzeMessage(message) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ texto: message.text }),
     });
-    message.mood = await response.json();
+    const mood = await response.json();
+    if (!response.ok || mood.error) throw new Error(mood.error || `respondió ${response.status}`);
+    message.mood = mood;
     saveSessions();
     renderAll();
   } catch (error) {

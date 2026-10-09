@@ -88,11 +88,19 @@ class Agente:
     def analizar_sentimiento(self, texto):
         try:
             interaccion = self.cliente.interactions.create(model=MODELO, input=PROMPT_SENTIMIENTO + texto)
-            limpio = interaccion.output_text.strip().removeprefix("```json").removesuffix("```").strip()
-            return json.loads(limpio)
+            bruto = interaccion.output_text
+            datos = json.loads(bruto[bruto.find("{"): bruto.rfind("}") + 1])
+            sentimiento = str(datos.get("sentimiento", "")).strip().lower()
+            if sentimiento not in ("positivo", "neutral", "negativo"):
+                sentimiento = "neutral"
+            return {
+                "sentimiento": sentimiento,
+                "emocion": str(datos.get("emocion", "neutral")).strip().lower(),
+                "intensidad": max(0, min(1, float(datos.get("intensidad", 0)))),
+            }
         except Exception as error:
             print("Error de sentimiento:", error)
-            return {"sentimiento": "neutral", "emocion": "neutral", "intensidad": 0}
+            return {"error": str(error)}
 
     def consultar_ips(self, limite=5, **filtros):
         contexto = self.ultima_consulta.copy()
