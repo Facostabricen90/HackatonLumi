@@ -11,7 +11,7 @@ const liveStates = ["listening", "thinking", "speaking"];
 const spriteByState = {
   idle: "default",
   listening: "default",
-  speaking: "default",
+  speaking: "talking",
   connecting: "loading",
   thinking: "thinking",
   error: "error",
