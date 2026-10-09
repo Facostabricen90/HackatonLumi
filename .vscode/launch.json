@@ -9,7 +9,7 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "main.py",
+            "program": "consola.py",
             "console": "integratedTerminal"
         }
     ]
