@@ -33,3 +33,7 @@ def crear_sesion():
 @app.post("/api/consulta")
 def consultar(filtros: dict):
     return agente.consultar_ips(**filtros)
+
+@app.post("/api/sentimiento")
+def analizar_sentimiento(datos: dict):
+    return agente.analizar_sentimiento(datos.get("texto", ""))

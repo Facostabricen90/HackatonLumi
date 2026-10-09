@@ -37,12 +37,20 @@ const micButton = document.querySelector("#mic-button");
 const voiceStage = document.querySelector("#voice-stage");
 const voicePrompt = document.querySelector("#voice-prompt");
 const recordingState = document.querySelector("#recording-state");
+const moodSummary = document.querySelector("#mood-summary");
+const moodEmotion = document.querySelector("#mood-emotion");
+const moodSentiment = document.querySelector("#mood-sentiment");
+const moodBarFill = document.querySelector("#mood-bar-fill");
+const countPositive = document.querySelector("#count-positive");
+const countNeutral = document.querySelector("#count-neutral");
+const countNegative = document.querySelector("#count-negative");
 
 let sessions = JSON.parse(localStorage.getItem(storageKey) || "[]");
 let activeSessionId = sessions[0]?.id ?? null;
 if (!activeSessionId) createSession("Primera consulta");
 
 let liveSession = null;
+let isConnecting = false;
 let micStream = null;
 let micContext = null;
 let speakerContext = null;
@@ -87,7 +95,7 @@ function renderConversation() {
   messageCount.textContent = `${messages.length} ${messages.length === 1 ? "mensaje" : "mensajes"}`;
   conversation.innerHTML = messages.length ? messages.map((message) => `
     <article class="message ${message.role}">
-      <span class="message-meta">${message.role === "user" ? "Tú" : "Agente Vocal"} · ${message.time}</span>
+    <span class="message-meta">${message.role === "user" ? "Tú" : "Agente Vocal"} · ${message.time}${moodBadge(message)}</span>
       ${escapeHtml(message.text)}
     </article>`).join("") : `<div class="empty-state">Tu conversación aparecerá aquí.</div>`;
 }
@@ -95,6 +103,46 @@ function renderConversation() {
 function renderAll() {
   renderSessions();
   renderConversation();
+  renderMood();
+}
+
+function moodBadge(message) {
+  if (!message.mood) return "";
+  return `<span class="message-mood ${message.mood.sentimiento}">${escapeHtml(String(message.mood.emocion))}</span>`;
+}
+
+function renderMood() {
+  const analyzed = (activeSession()?.messages || []).filter((message) => message.role === "user" && message.mood);
+  const counts = { positivo: 0, neutral: 0, negativo: 0 };
+  analyzed.forEach((message) => {
+    if (message.mood.sentimiento in counts) counts[message.mood.sentimiento]++;
+  });
+  const last = analyzed.at(-1);
+
+  countPositive.textContent = counts.positivo;
+  countNeutral.textContent = counts.neutral;
+  countNegative.textContent = counts.negativo;
+  moodSummary.textContent = `${analyzed.length} ${analyzed.length === 1 ? "mensaje analizado" : "mensajes analizados"}`;
+  moodEmotion.textContent = last ? last.mood.emocion : "—";
+  moodSentiment.textContent = last ? `Sentimiento ${last.mood.sentimiento}` : "Habla para ver el análisis";
+  moodBarFill.className = last ? last.mood.sentimiento : "";
+  moodBarFill.style.width = last ? `${Math.round(Number(last.mood.intensidad) * 100)}%` : "0";
+}
+
+async function analyzeMessage(message) {
+  if (!message.text.trim()) return;
+  try {
+    const response = await fetch("/api/sentimiento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ texto: message.text }),
+    });
+    message.mood = await response.json();
+    saveSessions();
+    renderAll();
+  } catch (error) {
+    console.error("Sentimiento:", error);
+  }
 }
 
 function timeNow() {
@@ -163,9 +211,20 @@ function playAudio(base64) {
 }
 
 function stopAudio() {
-  playingSources.forEach((source) => source.stop());
+  playingSources.forEach((source) => {
+    source.onended = null;
+    try {
+      source.stop();
+    } catch (error) {
+      console.warn("Audio ya detenido:", error);
+    }
+  });
   playingSources = [];
   nextPlayTime = 0;
+}
+
+function closeContext(context) {
+  if (context && context.state !== "closed") context.close().catch((error) => console.warn(error));
 }
 
 async function openMicrophone() {
@@ -201,11 +260,17 @@ async function answerToolCalls(calls) {
 
 function addTranscription(role, fragment) {
   if (role === "user") {
-    agentMessage = null;
+    if (agentMessage) {
+      analyzeMessage(agentMessage);
+      agentMessage = null;
+    }
     if (!userMessage) userMessage = addMessage("user", "");
     appendText(userMessage, fragment);
   } else {
-    userMessage = null;
+    if (userMessage) {
+      analyzeMessage(userMessage);
+      userMessage = null;
+    }
     if (!agentMessage) agentMessage = addMessage("assistant", "");
     appendText(agentMessage, fragment);
   }
@@ -227,6 +292,8 @@ function handleServerMessage(message) {
   if (content.inputTranscription?.text) addTranscription("user", content.inputTranscription.text);
   if (content.outputTranscription?.text) addTranscription("assistant", content.outputTranscription.text);
   if (content.turnComplete) {
+    if (userMessage) analyzeMessage(userMessage);
+    if (agentMessage) analyzeMessage(agentMessage);
     userMessage = null;
     agentMessage = null;
   }
@@ -240,14 +307,18 @@ function setVoiceActive(isActive) {
 }
 
 async function startVoice() {
+  if (isConnecting) return;
+  isConnecting = true;
   voicePrompt.textContent = "Conectando...";
   recordingState.textContent = "Conectando";
+  let session = null;
   try {
     speakerContext = new AudioContext({ sampleRate: outputSampleRate });
-    const response = await fetch("/api/sesion");
+    const response = await fetch("/api/sesion", { cache: "no-store" });
+    if (!response.ok) throw new Error(`/api/sesion respondió ${response.status}`);
     const settings = await response.json();
     const ai = new GoogleGenAI({ apiKey: settings.token, httpOptions: { apiVersion: "v1beta" } });
-    liveSession = await ai.live.connect({
+    session = await ai.live.connect({
       model: settings.modelo,
       config: {
         responseModalities: ["AUDIO"],
@@ -259,27 +330,38 @@ async function startVoice() {
       callbacks: {
         onmessage: handleServerMessage,
         onerror: (error) => console.error("Error Live:", error),
-        onclose: () => stopVoice(),
+        onclose: (event) => {
+          console.log("Live cerrado:", event?.code, event?.reason);
+          if (liveSession === session) stopVoice();
+        },
       },
     });
+    liveSession = session;
     await openMicrophone();
     setVoiceActive(true);
     liveSession.sendRealtimeInput({ text: introPrompt });
   } catch (error) {
-    console.error(error);
+    console.error("Error al conectar:", error);
+    session?.close();
     stopVoice();
-    voicePrompt.textContent = "No pude conectar. Revisa la consola.";
+    voicePrompt.textContent = `No pude conectar: ${error.message}`;
+  } finally {
+    isConnecting = false;
   }
 }
 
 function stopVoice() {
   const session = liveSession;
   liveSession = null;
-  session?.close();
+  try {
+    session?.close();
+  } catch (error) {
+    console.warn("Cierre de sesión:", error);
+  }
   micStream?.getTracks().forEach((track) => track.stop());
-  micContext?.close();
+  closeContext(micContext);
   stopAudio();
-  speakerContext?.close();
+  closeContext(speakerContext);
   micStream = null;
   micContext = null;
   speakerContext = null;
@@ -304,11 +386,15 @@ queryForm.addEventListener("submit", (event) => {
     voicePrompt.textContent = "Pulsa el micrófono para conectar primero.";
     return;
   }
-  addMessage("user", text);
+  analyzeMessage(addMessage("user", text));
   liveSession.sendRealtimeInput({ text });
   queryInput.value = "";
 });
 
-micButton.addEventListener("click", () => (liveSession ? stopVoice() : startVoice()));
+micButton.addEventListener("click", () => {
+  if (isConnecting) return;
+  if (liveSession) stopVoice();
+  else startVoice();
+});
 
 renderAll();
