@@ -29,6 +29,7 @@ agente = Agente(cliente)
 
 
 @app.get("/api/sesion")
+@app.get("/sesion")
 def crear_sesion():
     if not cliente:
         raise HTTPException(
@@ -55,10 +56,13 @@ def crear_sesion():
 
 
 @app.post("/api/consulta")
+@app.post("/consulta")
 def consultar(filtros: dict):
     return agente.consultar_ips(**filtros)
 
+
 @app.post("/api/sentimiento")
+@app.post("/sentimiento")
 def analizar_sentimiento(datos: dict):
     return agente.analizar_sentimiento(datos.get("texto", ""))
 
