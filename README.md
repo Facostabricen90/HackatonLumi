@@ -1,16 +1,32 @@
 # HackatonLumi
 
 ##Instalaciones necesarias - pip install
-- google-genai 
-- pyaudio
-- python-dotenv
 
-## Interfaz web
+## Fuente de datos
 
-Para probar la interfaz clara de voz y sesiones, inicia un servidor local desde la carpeta del proyecto:
+El agente consulta exclusivamente en vivo el dataset oficial de IPS de datos.gov.co: `s2ru-bqt6`. La aplicación no carga `ips.json`, no descarga el dataset completo y calcula conteos y capacidad mediante consultas SoQL (`$select`, `$where`, `$limit` y `$order`).
 
-```powershell
-& ".\LumiEnv313\Scripts\python.exe" -m http.server 8081
+Variables de entorno:
+
+```text
+GEMINI_API_KEY=...
+SOCRATA_APP_TOKEN=...
+SOCRATA_DATASET_API_URL=https://www.datos.gov.co/resource/s2ru-bqt6.json
+FRONTEND_ORIGINS=https://tu-proyecto.vercel.app
 ```
 
-Abre `http://localhost:8081` en el navegador. La entrada de voz usa la API de reconocimiento de voz del navegador cuando está disponible.
+`SOCRATA_APP_TOKEN` es opcional, pero recomendable para producción. `FRONTEND_ORIGINS` debe contener el dominio final de Vercel; durante desarrollo puede ser `*`.
+
+## Ejecución local
+
+Instala las dependencias con:
+
+```powershell
+& ".\LumiEnv313\Scripts\python.exe" -m pip install -r requirements.txt
+```
+
+La aplicación FastAPI se ejecuta como función serverless en Vercel. Para una previsualización estática local puedes servir `public/`, pero las rutas `/api/sesion` y `/api/consulta` requieren el despliegue de Vercel.
+
+## Despliegue en Vercel
+
+El directorio `public/` contiene la interfaz y `api/index.py` expone FastAPI como función serverless. En Vercel, selecciona este repositorio, configura las variables de `.env.example` en Project Settings y despliega sin un comando de build. El frontend conservará las rutas `/api/sesion` y `/api/consulta` en el mismo dominio.
