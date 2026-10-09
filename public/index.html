@@ -20,7 +20,7 @@
           <small>Consulta inteligente para Colombia</small>
         </span>
       </a>
-      <div class="status-pill"><span class="status-dot"></span> Servicio disponible</div>
+      <div class="status-pill" id="status-pill" data-state="idle"><span class="status-dot"></span><span id="status-text">Servicio disponible</span></div>
     </header>
 
     <div class="workspace">
@@ -49,14 +49,17 @@
             <span class="input-label"><span class="mic-mini">◉</span> Entrada de consulta</span>
             <span class="recording-state" id="recording-state">Listo para escuchar</span>
           </div>
-          <div class="voice-stage" id="voice-stage">
+          <div class="voice-stage" id="voice-stage" data-state="idle">
+            <div class="mascot" aria-hidden="true">
+              <img id="mascot" src="sprites/lumi-default.gif" alt="" width="320" height="320" decoding="async">
+            </div>
             <div class="waveform" id="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
             <button class="mic-button" id="mic-button" title="Comenzar a grabar" aria-label="Comenzar a grabar"><span>●</span></button>
-            <p id="voice-prompt">Pulsa para hablar</p>
+            <p id="voice-prompt" aria-live="polite">Pulsa para hablar</p>
             <small>También puedes escribir tu consulta abajo</small>
           </div>
           <form class="text-input-row" id="query-form">
-            <input id="query-input" type="text" autocomplete="off" placeholder="Ej. ¿Qué IPS hay cerca de Chapinero?" aria-label="Escribe tu consulta">
+            <input id="query-input" type="text" autocomplete="off" placeholder="Ej. ¿Cuántas camas hay en Antioquia?" aria-label="Escribe tu consulta">
             <button class="send-button" type="submit" title="Enviar consulta" aria-label="Enviar consulta">↑</button>
           </form>
         </section>

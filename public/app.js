@@ -5,6 +5,28 @@ const inputSampleRate = 16000;
 const outputSampleRate = 24000;
 const introPrompt = "Inicia la conversación: preséntate y explica de qué trata el dataset y qué se puede preguntar.";
 
+const spriteFolder = "sprites";
+const exitDurationMs = 34 * 80;
+const liveStates = ["listening", "thinking", "speaking"];
+const spriteByState = {
+  idle: "default",
+  listening: "default",
+  speaking: "default",
+  connecting: "loading",
+  thinking: "thinking",
+  error: "error",
+  exit: "exit",
+};
+const stateText = {
+  idle: { prompt: "Pulsa para hablar", label: "Listo para escuchar", status: "Servicio disponible" },
+  connecting: { prompt: "Conectando con Lumi...", label: "Conectando", status: "Conectando" },
+  listening: { prompt: "Te escucho... pulsa para terminar", label: "Conversación en vivo", status: "Escuchando" },
+  thinking: { prompt: "Consultando los datos...", label: "Consultando datos", status: "Consultando datos" },
+  speaking: { prompt: "Lumi está respondiendo", label: "Conversación en vivo", status: "Lumi está hablando" },
+  error: { prompt: "Algo falló. Pulsa para intentar de nuevo", label: "Sin conexión", status: "Sin conexión" },
+  exit: { prompt: "Hasta pronto", label: "Sesión cerrada", status: "Sesión cerrada" },
+};
+
 const micProcessorCode = `
 class MicProcessor extends AudioWorkletProcessor {
   constructor() {
@@ -37,6 +59,9 @@ const micButton = document.querySelector("#mic-button");
 const voiceStage = document.querySelector("#voice-stage");
 const voicePrompt = document.querySelector("#voice-prompt");
 const recordingState = document.querySelector("#recording-state");
+const mascot = document.querySelector("#mascot");
+const statusPill = document.querySelector("#status-pill");
+const statusText = document.querySelector("#status-text");
 const moodSummary = document.querySelector("#mood-summary");
 const moodEmotion = document.querySelector("#mood-emotion");
 const moodSentiment = document.querySelector("#mood-sentiment");
@@ -209,7 +234,11 @@ function playAudio(base64) {
   source.start(nextPlayTime);
   nextPlayTime += buffer.duration;
   playingSources.push(source);
-  source.onended = () => { playingSources = playingSources.filter((item) => item !== source); };
+  if (liveSession && voiceStage.dataset.state !== "speaking") setState("speaking");
+  source.onended = () => {
+    playingSources = playingSources.filter((item) => item !== source);
+    if (!playingSources.length && liveSession) setState("listening");
+  };
 }
 
 function stopAudio() {
@@ -247,15 +276,23 @@ async function openMicrophone() {
 }
 
 async function answerToolCalls(calls) {
+  setState("thinking");
   const functionResponses = [];
   for (const call of calls) {
     console.log("Herramienta:", call.name, call.args);
-    const response = await fetch("/api/consulta", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(call.args || {}),
-    });
-    functionResponses.push({ id: call.id, name: call.name, response: { result: await response.json() } });
+    let result;
+    try {
+      const response = await fetch("/api/consulta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(call.args || {}),
+      });
+      result = await response.json();
+    } catch (error) {
+      console.error("Consulta de datos:", error);
+      result = { error: "No pude consultar los datos en este momento. Intenta de nuevo." };
+    }
+    functionResponses.push({ id: call.id, name: call.name, response: { result } });
   }
   liveSession?.sendToolResponse({ functionResponses });
 }
@@ -287,6 +324,7 @@ function handleServerMessage(message) {
   if (content.interrupted) {
     stopAudio();
     agentMessage = null;
+    setState("listening");
   }
   content.modelTurn?.parts?.forEach((part) => {
     if (part.inlineData?.data) playAudio(part.inlineData.data);
@@ -298,21 +336,30 @@ function handleServerMessage(message) {
     if (agentMessage) analyzeMessage(agentMessage);
     userMessage = null;
     agentMessage = null;
+    if (liveSession && !playingSources.length) setState("listening");
   }
 }
 
-function setVoiceActive(isActive) {
-  micButton.classList.toggle("recording", isActive);
-  voiceStage.classList.toggle("is-recording", isActive);
-  voicePrompt.textContent = isActive ? "Te estoy escuchando... pulsa para terminar" : "Pulsa para hablar";
-  recordingState.textContent = isActive ? "Conversación en vivo" : "Listo para escuchar";
+function setState(state, message) {
+  const text = stateText[state];
+  const isLive = liveStates.includes(state);
+  const micLabel = isLive ? "Terminar conversación" : "Hablar con Lumi";
+  const sprite = `${spriteFolder}/lumi-${spriteByState[state]}.gif`;
+  voiceStage.dataset.state = state;
+  statusPill.dataset.state = state;
+  micButton.classList.toggle("recording", isLive);
+  micButton.title = micLabel;
+  micButton.setAttribute("aria-label", micLabel);
+  voicePrompt.textContent = message || text.prompt;
+  recordingState.textContent = text.label;
+  statusText.textContent = text.status;
+  if (!mascot.src.endsWith(sprite)) mascot.src = sprite;
 }
 
 async function startVoice() {
   if (isConnecting) return;
   isConnecting = true;
-  voicePrompt.textContent = "Conectando...";
-  recordingState.textContent = "Conectando";
+  setState("connecting");
   let session = null;
   try {
     speakerContext = new AudioContext({ sampleRate: outputSampleRate });
@@ -334,19 +381,22 @@ async function startVoice() {
         onerror: (error) => console.error("Error Live:", error),
         onclose: (event) => {
           console.log("Live cerrado:", event?.code, event?.reason);
-          if (liveSession === session) stopVoice();
+          if (liveSession === session) {
+            stopVoice();
+            setState("error", "La conversación se cerró. Pulsa para reconectar.");
+          }
         },
       },
     });
     liveSession = session;
     await openMicrophone();
-    setVoiceActive(true);
+    setState("listening");
     liveSession.sendRealtimeInput({ text: introPrompt });
   } catch (error) {
     console.error("Error al conectar:", error);
     session?.close();
     stopVoice();
-    voicePrompt.textContent = `No pude conectar: ${error.message}`;
+    setState("error", `No pude conectar: ${error.message}`);
   } finally {
     isConnecting = false;
   }
@@ -369,7 +419,10 @@ function stopVoice() {
   speakerContext = null;
   userMessage = null;
   agentMessage = null;
-  setVoiceActive(false);
+  setState("exit");
+  window.setTimeout(() => {
+    if (voiceStage.dataset.state === "exit") setState("idle");
+  }, exitDurationMs);
 }
 
 document.querySelectorAll("#new-session, #new-session-secondary").forEach((button) => {
@@ -399,4 +452,11 @@ micButton.addEventListener("click", () => {
   else startVoice();
 });
 
+window.addEventListener("load", () => {
+  Object.values(spriteByState).forEach((name) => {
+    new Image().src = `${spriteFolder}/lumi-${name}.gif`;
+  });
+});
+
+setState("idle");
 renderAll();
