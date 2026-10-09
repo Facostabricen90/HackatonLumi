@@ -66,6 +66,14 @@ HERRAMIENTAS_VOZ = [
     for herramienta in HERRAMIENTAS
 ]
 
+PROMPT_SENTIMIENTO = """Analiza el sentimiento y la emoción del siguiente texto en español.
+Responde SOLO con un JSON con esta forma exacta:
+{"sentimiento": "positivo", "emocion": "alegría", "intensidad": 0.7}
+sentimiento solo puede ser: positivo, neutral o negativo.
+emocion es una sola palabra en español.
+intensidad es un número entre 0 y 1.
+Texto: """
+
 
 class Agente:
     def __init__(self, cliente=None, api=None):
@@ -76,6 +84,15 @@ class Agente:
 
     def perfil(self):
         return self.api.perfil()
+
+    def analizar_sentimiento(self, texto):
+        try:
+            interaccion = self.cliente.interactions.create(model=MODELO, input=PROMPT_SENTIMIENTO + texto)
+            limpio = interaccion.output_text.strip().removeprefix("```json").removesuffix("```").strip()
+            return json.loads(limpio)
+        except Exception as error:
+            print("Error de sentimiento:", error)
+            return {"sentimiento": "neutral", "emocion": "neutral", "intensidad": 0}
 
     def consultar_ips(self, limite=5, **filtros):
         contexto = self.ultima_consulta.copy()
