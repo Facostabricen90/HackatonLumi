@@ -83,3 +83,16 @@ h1 em { color: var(--violet); font-style: normal; }
 @keyframes wave { to { transform: scaleY(1.9); } }
 @media (max-width: 850px) { .workspace { grid-template-columns: 1fr; width: min(680px, calc(100% - 32px)); } .sessions-panel { min-height: auto; padding: 24px 0 0; border-right: 0; } .session-list { display: flex; overflow-x: auto; margin-top: 17px; padding-bottom: 3px; } .session-item { min-width: 180px; } .sessions-footer { display: none; } .main-content { padding-top: 42px; } }
 @media (max-width: 520px) { .topbar { padding: 16px; } .status-pill { padding: 7px 9px; font-size: 0; } .status-dot { margin: 0; } h1 { font-size: 42px; } .voice-card { padding: 14px; } .message.user, .message.assistant { margin-left: 0; margin-right: 0; } }
+.mood-card { margin-top: 24px; padding: 21px; border: 1px solid var(--line); border-radius: 20px; background: rgba(255, 255, 255, .86); box-shadow: var(--shadow); }
+.mood-body { display: grid; gap: 14px; margin-top: 14px; }
+.mood-main strong { display: block; font: 600 26px "Space Grotesk", sans-serif; letter-spacing: -.5px; text-transform: capitalize; }
+.mood-main span { color: var(--muted); font-size: 12px; }
+.mood-bar { height: 8px; overflow: hidden; border-radius: 99px; background: var(--soft); }
+.mood-bar div { width: 0; height: 100%; border-radius: 99px; background: var(--muted); transition: width .4s ease, background .4s ease; }
+.mood-bar div.positivo { background: var(--mint-deep); }
+.mood-bar div.negativo { background: var(--coral); }
+.mood-counts { display: flex; gap: 18px; color: var(--muted); font-size: 12px; }
+.mood-counts b { margin-left: 5px; color: var(--ink); }
+.message-mood { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 99px; background: var(--soft); font-size: 10px; letter-spacing: 0; text-transform: none; }
+.message-mood.positivo { color: #2a7d63; background: #e6f7f0; }
+.message-mood.negativo { color: #b9523f; background: #fdeeea; }

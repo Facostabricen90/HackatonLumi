@@ -25,7 +25,23 @@ Instala las dependencias con:
 & ".\LumiEnv313\Scripts\python.exe" -m pip install -r requirements.txt
 ```
 
-La aplicación FastAPI se ejecuta como función serverless en Vercel. Para una previsualización estática local puedes servir `public/`, pero las rutas `/api/sesion` y `/api/consulta` requieren el despliegue de Vercel.
+Ejecuta el proyecto completo con la CLI de Vercel:
+
+```powershell
+vercel login
+vercel dev --listen 8081
+```
+
+`vercel login` abre el flujo de autenticación en el navegador. Si aparece un token inválido, ejecuta `vercel logout` y vuelve a hacer `vercel login`. Después abre `http://localhost:8081`; Vercel servirá `public/` y las funciones `/api/sesion` y `/api/consulta` en local, sin `uvicorn`.
+
+Si `vercel dev` falla en Windows con `unicodeescape` dentro de `.vercel/python/vc_init_dev.py`, usa el servidor ASGI local alternativo:
+
+```powershell
+& ".\LumiEnv313\Scripts\python.exe" -m pip install -r requirements-dev.txt
+& ".\LumiEnv313\Scripts\python.exe" -m hypercorn app:app --bind 127.0.0.1:8081
+```
+
+Este error pertenece al runtime local de Vercel; no edites `.vercel/python/vc_init_dev.py` porque es un archivo generado.
 
 ## Despliegue en Vercel
 
