@@ -1,6 +1,5 @@
 import { GoogleGenAI } from "https://esm.run/@google/genai";
 
-const storageKey = "ips-vocal-sessions";
 const inputSampleRate = 16000;
 const outputSampleRate = 24000;
 const introPrompt = "Inicia la conversación: preséntate y explica de qué trata el dataset y qué se puede preguntar.";
@@ -50,7 +49,6 @@ class MicProcessor extends AudioWorkletProcessor {
 registerProcessor("mic-processor", MicProcessor);
 `;
 
-const sessionList = document.querySelector("#session-list");
 const conversation = document.querySelector("#conversation");
 const messageCount = document.querySelector("#message-count");
 const queryForm = document.querySelector("#query-form");
@@ -66,13 +64,18 @@ const moodSummary = document.querySelector("#mood-summary");
 const moodEmotion = document.querySelector("#mood-emotion");
 const moodSentiment = document.querySelector("#mood-sentiment");
 const moodBarFill = document.querySelector("#mood-bar-fill");
+const moodIntensityPct = document.querySelector("#mood-intensity-pct");
+const moodAvatarIcon = document.querySelector("#mood-avatar-icon");
 const countPositive = document.querySelector("#count-positive");
 const countNeutral = document.querySelector("#count-neutral");
 const countNegative = document.querySelector("#count-negative");
+const newSessionBtn = document.querySelector("#new-session");
 
-let sessions = JSON.parse(localStorage.getItem(storageKey) || "[]");
-let activeSessionId = sessions[0]?.id ?? null;
-if (!activeSessionId) createSession("Primera consulta");
+// Sesión efímera de la pestaña actual (sin historiales compartidos ni persistencia global)
+let currentSession = {
+  id: Date.now().toString(),
+  messages: [],
+};
 
 let liveSession = null;
 let isConnecting = false;
@@ -84,49 +87,45 @@ let playingSources = [];
 let userMessage = null;
 let agentMessage = null;
 
-function createSession(title = "Nueva consulta") {
-  const session = { id: Date.now().toString(), title, createdAt: new Date().toISOString(), messages: [] };
-  sessions.unshift(session);
-  activeSessionId = session.id;
-  saveSessions();
-  return session.id;
-}
-
-function saveSessions() {
-  localStorage.setItem(storageKey, JSON.stringify(sessions));
-}
-
 function activeSession() {
-  return sessions.find((session) => session.id === activeSessionId);
+  return currentSession;
 }
 
-function renderSessions() {
-  sessionList.innerHTML = sessions.length ? sessions.map((session) => `
-    <button class="session-item ${session.id === activeSessionId ? "active" : ""}" data-session-id="${session.id}">
-      <strong>${escapeHtml(session.title)}</strong>
-      <span>${formatDate(session.createdAt)} · ${session.messages.length} mensajes</span>
-    </button>`).join("") : `<div class="empty-state">Crea una sesión para comenzar.</div>`;
-
-  sessionList.querySelectorAll(".session-item").forEach((button) => {
-    button.addEventListener("click", () => {
-      activeSessionId = button.dataset.sessionId;
-      renderAll();
-    });
-  });
+function resetConversation() {
+  currentSession = {
+    id: Date.now().toString(),
+    messages: [],
+  };
+  userMessage = null;
+  agentMessage = null;
+  renderAll();
+  if (queryInput) {
+    queryInput.value = "";
+    queryInput.focus();
+  }
 }
 
 function renderConversation() {
   const messages = activeSession()?.messages || [];
-  messageCount.textContent = `${messages.length} ${messages.length === 1 ? "mensaje" : "mensajes"}`;
-  conversation.innerHTML = messages.length ? messages.map((message) => `
-    <article class="message ${message.role}">
-    <span class="message-meta">${message.role === "user" ? "Tú" : "Agente Vocal"} · ${message.time}${moodBadge(message)}</span>
-      ${escapeHtml(message.text)}
-    </article>`).join("") : `<div class="empty-state">Tu conversación aparecerá aquí.</div>`;
+  if (messageCount) {
+    messageCount.textContent = `${messages.length} ${messages.length === 1 ? "mensaje" : "mensajes"}`;
+  }
+  if (conversation) {
+    conversation.innerHTML = messages.length ? messages.map((message) => `
+      <article class="message ${message.role}">
+        <div class="message-meta">
+          <span>${message.role === "user" ? "Tú" : "Lumi"} · ${message.time}</span>
+          ${moodBadge(message)}
+        </div>
+        <div class="message-text">${escapeHtml(message.text)}</div>
+      </article>`).join("") : `<div class="empty-state">Tu conversación aparecerá aquí en tiempo real cuando hables con Lumi.</div>`;
+
+    // Auto-scroll al final del recuadro fijo
+    conversation.scrollTop = conversation.scrollHeight;
+  }
 }
 
 function renderAll() {
-  renderSessions();
   renderConversation();
   renderMood();
 }
@@ -144,18 +143,38 @@ function renderMood() {
   });
   const last = analyzed.at(-1);
 
-  countPositive.textContent = counts.positivo;
-  countNeutral.textContent = counts.neutral;
-  countNegative.textContent = counts.negativo;
-  moodSummary.textContent = `${analyzed.length} ${analyzed.length === 1 ? "mensaje analizado" : "mensajes analizados"}`;
-  moodEmotion.textContent = last ? last.mood.emocion : "—";
-  moodSentiment.textContent = last ? `Sentimiento ${last.mood.sentimiento}` : "Habla para ver el análisis";
-  moodBarFill.className = last ? last.mood.sentimiento : "";
-  moodBarFill.style.width = last ? `${Math.round(Number(last.mood.intensidad) * 100)}%` : "0";
+  if (countPositive) countPositive.textContent = counts.positivo;
+  if (countNeutral) countNeutral.textContent = counts.neutral;
+  if (countNegative) countNegative.textContent = counts.negativo;
+  if (moodSummary) moodSummary.textContent = `${analyzed.length} ${analyzed.length === 1 ? "mensaje analizado" : "mensajes analizados"}`;
+  if (moodEmotion) moodEmotion.textContent = last ? last.mood.emocion : "—";
+  if (moodSentiment) moodSentiment.textContent = last ? `Sentimiento ${last.mood.sentimiento}` : "Habla para ver el análisis";
+
+  if (moodBarFill) {
+    moodBarFill.className = last ? last.mood.sentimiento : "";
+    moodBarFill.style.width = last ? `${Math.round(Number(last.mood.intensidad) * 100)}%` : "0";
+  }
+  if (moodIntensityPct) {
+    moodIntensityPct.textContent = last ? `${Math.round(Number(last.mood.intensidad) * 100)}%` : "0%";
+  }
+  if (moodAvatarIcon) {
+    if (!last) {
+      moodAvatarIcon.textContent = "💬";
+    } else if (last.mood.sentimiento === "positivo") {
+      moodAvatarIcon.textContent = "😊";
+    } else if (last.mood.sentimiento === "negativo") {
+      moodAvatarIcon.textContent = "😟";
+    } else {
+      moodAvatarIcon.textContent = "😐";
+    }
+  }
 }
 
 async function analyzeMessage(message) {
+  // Solo se analiza al ciudadano, una vez por mensaje (ahorra cuota de la API)
+  if (!message || message.role !== "user" || message.analyzing || message.mood) return;
   if (!message.text.trim()) return;
+  message.analyzing = true;
   try {
     const response = await fetch("/api/sentimiento", {
       method: "POST",
@@ -165,10 +184,11 @@ async function analyzeMessage(message) {
     const mood = await response.json();
     if (!response.ok || mood.error) throw new Error(mood.error || `respondió ${response.status}`);
     message.mood = mood;
-    saveSessions();
     renderAll();
   } catch (error) {
     console.error("Sentimiento:", error);
+  } finally {
+    message.analyzing = false;
   }
 }
 
@@ -179,26 +199,17 @@ function timeNow() {
 function addMessage(role, text) {
   const message = { role, text, time: timeNow() };
   activeSession().messages.push(message);
-  saveSessions();
   renderAll();
   return message;
 }
 
 function appendText(message, fragment) {
   message.text += fragment;
-  const session = activeSession();
-  const firstUserMessage = session.messages.find((item) => item.role === "user");
-  if (firstUserMessage?.text.trim()) session.title = firstUserMessage.text.trim().slice(0, 30);
-  saveSessions();
   renderAll();
 }
 
 function escapeHtml(value) {
   return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
-}
-
-function formatDate(date) {
-  return new Date(date).toLocaleDateString("es-CO", { day: "numeric", month: "short" });
 }
 
 function bytesToBase64(bytes) {
@@ -324,7 +335,6 @@ function handleServerMessage(message) {
   if (content.interrupted) {
     stopAudio();
     agentMessage = null;
-    setState("listening");
   }
   content.modelTurn?.parts?.forEach((part) => {
     if (part.inlineData?.data) playAudio(part.inlineData.data);
@@ -336,17 +346,17 @@ function handleServerMessage(message) {
     if (agentMessage) analyzeMessage(agentMessage);
     userMessage = null;
     agentMessage = null;
-    if (liveSession && !playingSources.length) setState("listening");
   }
 }
 
-function setState(state, message) {
-  const text = stateText[state];
-  const isLive = liveStates.includes(state);
-  const micLabel = isLive ? "Terminar conversación" : "Hablar con Lumi";
-  const sprite = `${spriteFolder}/lumi-${spriteByState[state]}.gif`;
+function setState(state, message = "") {
   voiceStage.dataset.state = state;
   statusPill.dataset.state = state;
+  const isLive = liveStates.includes(state);
+  const text = stateText[state] || stateText.idle;
+  const sprite = `${spriteFolder}/lumi-${spriteByState[state] || "default"}.gif`;
+  const micLabel = isLive ? "Terminar conversación" : "Comenzar a hablar";
+
   micButton.classList.toggle("recording", isLive);
   micButton.title = micLabel;
   micButton.setAttribute("aria-label", micLabel);
@@ -425,13 +435,11 @@ function stopVoice() {
   }, exitDurationMs);
 }
 
-document.querySelectorAll("#new-session, #new-session-secondary").forEach((button) => {
-  button.addEventListener("click", () => {
-    createSession();
-    renderAll();
-    queryInput.focus();
+if (newSessionBtn) {
+  newSessionBtn.addEventListener("click", () => {
+    resetConversation();
   });
-});
+}
 
 queryForm.addEventListener("submit", (event) => {
   event.preventDefault();

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Agente vocal para consultar información de IPS en Colombia">
-  <title>Agente Vocal IPS</title>
+  <meta name="description" content="Lumi - Agente vocal inteligente para consultar capacidad instalada de IPS en Colombia">
+  <title>Lumi · Agente Vocal IPS Colombia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -13,79 +13,118 @@
 <body>
   <div class="app-shell">
     <header class="topbar">
-      <a class="brand" href="#main-content" aria-label="Ir al inicio">
+      <div class="brand">
         <span class="brand-mark" aria-hidden="true">✦</span>
-        <span>
-          <strong>Agente Vocal IPS</strong>
-          <small>Consulta inteligente para Colombia</small>
-        </span>
-      </a>
-      <div class="status-pill" id="status-pill" data-state="idle"><span class="status-dot"></span><span id="status-text">Servicio disponible</span></div>
+        <div>
+          <strong>LUMI · Agente Vocal IPS</strong>
+          <small>Consulta en vivo · datos.gov.co</small>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button class="reset-button" id="new-session" title="Reiniciar conversación actual" aria-label="Nueva consulta">
+          <span class="reset-icon">↺</span>
+          <span>Nueva consulta</span>
+        </button>
+        <div class="status-pill" id="status-pill" data-state="idle">
+          <span class="status-dot"></span>
+          <span id="status-text">Servicio disponible</span>
+        </div>
+      </div>
     </header>
 
-    <div class="workspace">
-      <aside class="sessions-panel" aria-label="Sesiones">
-        <div class="panel-heading">
-          <div>
-            <span class="eyebrow">Tu espacio</span>
-            <h2>Sesiones</h2>
+    <main class="main-container" id="main-content">
+      <!-- 1. PARTE SUPERIOR: Transcripción de voz con recuadro fijo y scroll interno -->
+      <section class="conversation-section" aria-label="Transcripción de la conversación">
+        <div class="section-heading">
+          <div class="heading-title">
+            <span class="eyebrow">Transcripción en vivo</span>
+            <h2>Conversación</h2>
           </div>
-          <button class="icon-button" id="new-session" title="Nueva sesión" aria-label="Nueva sesión">＋</button>
+          <span class="badge-count" id="message-count">0 mensajes</span>
         </div>
-        <button class="new-session-button" id="new-session-secondary"><span>＋</span> Nueva sesión</button>
-        <div class="session-list" id="session-list" aria-live="polite"></div>
-        <div class="sessions-footer"><span class="footer-spark">✦</span> Tus consultas, en un solo lugar</div>
-      </aside>
+        <div class="conversation-box" id="conversation" aria-live="polite">
+          <div class="empty-state">Tu conversación aparecerá aquí en tiempo real cuando hables con Lumi.</div>
+        </div>
+      </section>
 
-      <main class="main-content" id="main-content">
-        <section class="welcome-block">
-          <span class="eyebrow">Asistente de voz</span>
-          <h1>¿En qué IPS te<br><em>puedo ayudar?</em></h1>
-          <p>Habla naturalmente. Te ayudaré a encontrar información de instituciones prestadoras de salud en Colombia.</p>
-        </section>
-
+      <!-- 2. PARTE INFERIOR: LUMI y Análisis Emocional "A LA PAR" (Lado a lado sin scroll) -->
+      <div class="interaction-grid">
+        <!-- Bloque LUMI (Escenario de voz) -->
         <section class="voice-card" aria-label="Entrada de voz">
-          <div class="voice-card-top">
-            <span class="input-label"><span class="mic-mini">◉</span> Entrada de consulta</span>
+          <div class="card-header">
+            <span class="input-label"><span class="mic-mini">◉</span> Asistente Vocal</span>
             <span class="recording-state" id="recording-state">Listo para escuchar</span>
           </div>
+
           <div class="voice-stage" id="voice-stage" data-state="idle">
             <div class="mascot" aria-hidden="true">
-              <img id="mascot" src="sprites/lumi-default.gif" alt="" width="320" height="320" decoding="async">
+              <img id="mascot" src="sprites/lumi-default.gif" alt="Mascota Lumi" width="320" height="320" decoding="async">
             </div>
-            <div class="waveform" id="waveform" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <button class="mic-button" id="mic-button" title="Comenzar a grabar" aria-label="Comenzar a grabar"><span>●</span></button>
+            <div class="waveform" id="waveform" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <button class="mic-button" id="mic-button" title="Comenzar a hablar" aria-label="Comenzar a hablar">
+              <span>●</span>
+            </button>
             <p id="voice-prompt" aria-live="polite">Pulsa para hablar</p>
-            <small>También puedes escribir tu consulta abajo</small>
+            <small>Voz dulce paisa del Eje Cafetero</small>
           </div>
+
           <form class="text-input-row" id="query-form">
-            <input id="query-input" type="text" autocomplete="off" placeholder="Ej. ¿Cuántas camas hay en Antioquia?" aria-label="Escribe tu consulta">
+            <input id="query-input" type="text" autocomplete="off" placeholder="Escribe tu consulta si no puedes usar voz..." aria-label="Escribe tu consulta">
             <button class="send-button" type="submit" title="Enviar consulta" aria-label="Enviar consulta">↑</button>
           </form>
         </section>
 
+        <!-- Bloque Análisis Emocional (A la par de LUMI) -->
         <section class="mood-card" aria-label="Análisis emocional">
-          <div class="section-heading"><span class="eyebrow">Análisis emocional</span><span id="mood-summary">0 mensajes analizados</span></div>
+          <div class="card-header">
+            <span class="input-label"><span class="mood-mini">♡</span> Análisis Emocional</span>
+            <span id="mood-summary" class="mood-summary-pill">0 mensajes analizados</span>
+          </div>
+
           <div class="mood-body">
-            <div class="mood-main">
-              <strong id="mood-emotion">—</strong>
-              <span id="mood-sentiment">Habla para ver el análisis</span>
+            <div class="mood-hero">
+              <div class="mood-avatar-badge" id="mood-avatar-icon">💬</div>
+              <div class="mood-main">
+                <strong id="mood-emotion">—</strong>
+                <span id="mood-sentiment">Habla con Lumi para ver el análisis</span>
+              </div>
             </div>
-            <div class="mood-bar"><div id="mood-bar-fill"></div></div>
-            <div class="mood-counts">
-              <span>Positivo<b id="count-positive">0</b></span>
-              <span>Neutral<b id="count-neutral">0</b></span>
-              <span>Negativo<b id="count-negative">0</b></span>
+
+            <div class="mood-meter-wrapper">
+              <div class="mood-meter-labels">
+                <span>Intensidad</span>
+                <span id="mood-intensity-pct">0%</span>
+              </div>
+              <div class="mood-bar">
+                <div id="mood-bar-fill"></div>
+              </div>
+            </div>
+
+            <div class="mood-counts-grid">
+              <div class="count-card positive">
+                <span class="count-label">Positivo</span>
+                <b id="count-positive">0</b>
+              </div>
+              <div class="count-card neutral">
+                <span class="count-label">Neutral</span>
+                <b id="count-neutral">0</b>
+              </div>
+              <div class="count-card negative">
+                <span class="count-label">Negativo</span>
+                <b id="count-negative">0</b>
+              </div>
+            </div>
+
+            <div class="mood-info-box">
+              <span class="info-spark">✦</span>
+              <p>Lumi analiza el tono emocional y la intención del ciudadano para empatizar y brindar una respuesta más humana.</p>
             </div>
           </div>
         </section>
-
-        <section class="conversation-section">
-          <div class="section-heading"><span class="eyebrow">Actividad reciente</span><span id="message-count">0 mensajes</span></div>
-          <div class="conversation" id="conversation" aria-live="polite"></div>
-        </section>
-      </main>
-    </div>
+      </div>
+    </main>
   </div>
   <script type="module" src="app.js"></script>
 </body>

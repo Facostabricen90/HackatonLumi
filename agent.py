@@ -1,6 +1,13 @@
 import json
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
+from sentimiento import analizar_local
 from socrata import SocrataIPS, SocrataUnavailable
+
+TIMEOUT_SENTIMIENTO = 6
+PAUSA_TRAS_ERROR = 600
+_ejecutor_sentimiento = ThreadPoolExecutor(max_workers=2)
 
 MODELO = "gemini-3.8-flash"
 
@@ -56,7 +63,16 @@ Tono y personalidad de voz: Eres una asistente femenina con voz dulce, suave, c�
 Acento y entonación: Habla con acento paisa del Eje Cafetero (como el de Manizales o Pereira): una cadencia melódica sutil, dulce y educada, sin exagerar ni usar el acento marcado o barrial de Medellín. Es un hablar paisa neutro, pulcro, claro y formal, con una musicalidad suave y natural.
 Fórmulas de cortesía: Utiliza expresiones y trato respetuoso propios del Eje Cafetero y Colombia (por ejemplo: "con mucho gusto", "claro que sí", "con todo el gusto le colaboro", "a la orden"). Trata al usuario con respeto y calidez.
 Al iniciar la conversación, preséntate con dulzura como Lumi, explica en dos frases de qué trata el dataset y da dos ejemplos de preguntas que se pueden hacer.
-Si una consulta devuelve muchos registros, resume con calidez y ofrece filtrar por departamento o municipio."""
+Si una consulta devuelve muchos registros, resume con calidez y ofrece filtrar por departamento o municipio.
+
+Inteligencia emocional: en cada turno, percibe la emoción del usuario por su tono de voz, su ritmo y sus palabras, y adapta tu forma de responder. Nunca cambies los datos ni inventes cifras por la emoción; solo cambia el estilo. No nombres la emoción de forma clínica (no digas "detecto que estás frustrado"); demuéstralo con tu manera de hablar.
+Si notas confusión (dudas, "no entiendo", preguntas repetidas o vagas): modo guía. Habla más despacio, explica paso a paso con palabras sencillas, evita tecnicismos como "registros" o "capacidad instalada" sin explicarlos, da un ejemplo concreto y al final pregunta con amabilidad si quedó claro o si quiere que lo explique de otra forma.
+Si notas frustración o enojo (quejas, "no funciona", tono cortante o elevado): modo contención. Primero reconoce la molestia en una frase breve y sincera, por ejemplo "entiendo, qué pena con usted, vamos a resolverlo". Luego ve directo al dato, sin rodeos ni presentaciones. Si no encontraste el dato, ofrece una alternativa concreta, como filtrar por otro municipio o reformular la búsqueda.
+Si notas preocupación o urgencia (emergencias, enfermedad, prisa): modo calma. Habla con serenidad y seguridad, prioriza lo más útil primero (nombre de la IPS, dirección, teléfono, servicios de urgencias) y sé muy concisa. Si parece una emergencia médica real, recuerda con tacto que puede llamar a la línea 123.
+Si notas tristeza o desánimo: habla con más suavidad y empatía, con una frase breve de apoyo, sin perder la precisión de los datos.
+Si notas alegría, satisfacción o gratitud: modo celebración. Comparte la alegría con calidez, por ejemplo "¡qué bueno que le sirvió!" o "con mucho gusto, para eso estamos", y anima a seguir explorando sugiriendo una consulta relacionada.
+Si el usuario está neutral o solo tiene curiosidad: mantén el estilo breve, claro y amable de siempre.
+Si la emoción cambia durante la conversación, ajusta tu estilo de inmediato al nuevo estado."""
 
 
 def tipos_en_mayuscula(esquema):
@@ -85,26 +101,44 @@ class Agente:
         self.api = api or SocrataIPS()
         self.ultima_interaccion_id = None
         self.ultima_consulta = {}
+        self.sentimiento_pausado_hasta = 0
 
     def perfil(self):
         return self.api.perfil()
 
+    def _sentimiento_modelo(self, texto):
+        respuesta = self.cliente.models.generate_content(model=MODELO, contents=PROMPT_SENTIMIENTO + texto)
+        bruto = respuesta.text or ""
+        datos = json.loads(bruto[bruto.find("{"): bruto.rfind("}") + 1])
+        sentimiento = str(datos.get("sentimiento", "")).strip().lower()
+        if sentimiento not in ("positivo", "neutral", "negativo"):
+            sentimiento = "neutral"
+        return {
+            "sentimiento": sentimiento,
+            "emocion": str(datos.get("emocion", "neutral")).strip().lower(),
+            "intensidad": max(0, min(1, float(datos.get("intensidad", 0)))),
+            "fuente": "gemini",
+        }
+
     def analizar_sentimiento(self, texto):
+        texto = (texto or "").strip()
+        if not texto:
+            return analizar_local(texto)
+        if not self.cliente or time.time() < self.sentimiento_pausado_hasta:
+            return analizar_local(texto)
         try:
-            interaccion = self.cliente.interactions.create(model=MODELO, input=PROMPT_SENTIMIENTO + texto)
-            bruto = interaccion.output_text
-            datos = json.loads(bruto[bruto.find("{"): bruto.rfind("}") + 1])
-            sentimiento = str(datos.get("sentimiento", "")).strip().lower()
-            if sentimiento not in ("positivo", "neutral", "negativo"):
-                sentimiento = "neutral"
-            return {
-                "sentimiento": sentimiento,
-                "emocion": str(datos.get("emocion", "neutral")).strip().lower(),
-                "intensidad": max(0, min(1, float(datos.get("intensidad", 0)))),
-            }
+            futuro = _ejecutor_sentimiento.submit(self._sentimiento_modelo, texto)
+            return futuro.result(timeout=TIMEOUT_SENTIMIENTO)
+        except FuturesTimeout:
+            print("Sentimiento: el modelo tardó demasiado, uso análisis local")
         except Exception as error:
-            print("Error de sentimiento:", error)
-            return {"error": str(error)}
+            mensaje = str(error)
+            if "429" in mensaje or "RESOURCE_EXHAUSTED" in mensaje:
+                self.sentimiento_pausado_hasta = time.time() + PAUSA_TRAS_ERROR
+                print(f"Sentimiento: cuota agotada, uso análisis local por {PAUSA_TRAS_ERROR // 60} min")
+            else:
+                print("Sentimiento: error del modelo, uso análisis local:", mensaje[:200])
+        return analizar_local(texto)
 
     def consultar_ips(self, limite=5, **filtros):
         contexto = self.ultima_consulta.copy()

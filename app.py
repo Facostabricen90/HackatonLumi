@@ -53,3 +53,5 @@ def consultar(filtros: dict):
 @app.post("/api/sentimiento")
 def analizar_sentimiento(datos: dict):
     return agente.analizar_sentimiento(datos.get("texto", ""))
+
+app.mount("/", StaticFiles(directory="public", html=True), name="frontend")

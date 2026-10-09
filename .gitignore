@@ -62,3 +62,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 .vercel/
+
+# ==============================
+# Documentación interna / local
+# ==============================
+DOCUMENTACIÓN.md
