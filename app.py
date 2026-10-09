@@ -65,9 +65,3 @@ def consultar(filtros: dict):
 @app.post("/sentimiento")
 def analizar_sentimiento(datos: dict):
     return agente.analizar_sentimiento(datos.get("texto", ""))
-
-# Solo montar en local si la carpeta existe; en Vercel los archivos se sirven automáticamente
-public_path = Path(__file__).resolve().parent / "public"
-if public_path.exists():
-    app.mount("/", StaticFiles(directory=str(public_path), html=True), name="frontend")
-
