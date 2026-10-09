@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "https://esm.run/@google/genai";
+import { GoogleGenAI, StartSensitivity } from "https://esm.run/@google/genai";
 
 const inputSampleRate = 16000;
 const outputSampleRate = 24000;
@@ -385,6 +385,11 @@ async function startVoice() {
         tools: [{ functionDeclarations: settings.herramientas }],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+          },
+        },
       },
       callbacks: {
         onmessage: handleServerMessage,
