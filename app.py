@@ -2,7 +2,7 @@ import datetime
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from google import genai
@@ -22,28 +22,36 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
+
 gemini_api_key = os.getenv("GEMINI_API_KEY")
-if not gemini_api_key:
-    raise RuntimeError("Falta GEMINI_API_KEY en .env o en las variables del entorno")
-cliente = genai.Client(api_key=gemini_api_key)
+cliente = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 agente = Agente(cliente)
 
 
 @app.get("/api/sesion")
 def crear_sesion():
-    ahora = datetime.datetime.now(tz=datetime.timezone.utc)
-    token = cliente.auth_tokens.create(config={
-        "uses": 1,
-        "expire_time": ahora + datetime.timedelta(minutes=30),
-        "new_session_expire_time": ahora + datetime.timedelta(minutes=1),
-    })
-    return {
-        "token": token.name,
-        "modelo": MODELO_VOZ,
-        "voz": VOZ_DEFECTO,
-        "instruccion": f"{INSTRUCCION_VOZ}\n\n{agente.perfil()}",
-        "herramientas": HERRAMIENTAS_VOZ,
-    }
+    if not cliente:
+        raise HTTPException(
+            status_code=500,
+            detail="Falta configurar GEMINI_API_KEY en las variables de entorno de Vercel (Project Settings -> Environment Variables)"
+        )
+    try:
+        ahora = datetime.datetime.now(tz=datetime.timezone.utc)
+        token = cliente.auth_tokens.create(config={
+            "uses": 1,
+            "expire_time": ahora + datetime.timedelta(minutes=30),
+            "new_session_expire_time": ahora + datetime.timedelta(minutes=1),
+        })
+        return {
+            "token": token.name,
+            "modelo": MODELO_VOZ,
+            "voz": VOZ_DEFECTO,
+            "instruccion": f"{INSTRUCCION_VOZ}\n\n{agente.perfil()}",
+            "herramientas": HERRAMIENTAS_VOZ,
+        }
+    except Exception as error:
+        print("Error al crear sesión Live:", error)
+        raise HTTPException(status_code=500, detail=f"Error al generar token Live de Gemini: {str(error)}")
 
 
 @app.post("/api/consulta")
@@ -54,4 +62,8 @@ def consultar(filtros: dict):
 def analizar_sentimiento(datos: dict):
     return agente.analizar_sentimiento(datos.get("texto", ""))
 
-app.mount("/", StaticFiles(directory="public", html=True), name="frontend")
+# Solo montar en local si la carpeta existe; en Vercel los archivos se sirven automáticamente
+public_path = Path(__file__).resolve().parent / "public"
+if public_path.exists():
+    app.mount("/", StaticFiles(directory=str(public_path), html=True), name="frontend")
+
