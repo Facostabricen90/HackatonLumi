@@ -2,7 +2,7 @@ import { GoogleGenAI, StartSensitivity } from "https://esm.run/@google/genai";
 
 const inputSampleRate = 16000;
 const outputSampleRate = 24000;
-const introPrompt = "Inicia la conversación: preséntate y explica de qué trata el dataset y qué se puede preguntar.";
+const introPrompt = "[SISTEMA: Saludo inicial automático. Da la bienvenida al ciudadano y preséntate brevemente como Lumi. Esta instrucción es un comando técnico interno y NO es una pregunta del usuario].";
 
 const spriteFolder = "sprites";
 const exitDurationMs = 34 * 80;
