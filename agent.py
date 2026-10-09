@@ -23,7 +23,6 @@ Si el dato no está en el dataset, dilo. No inventes cifras."""
 INSTRUCCION_VOZ = INSTRUCCION + """
 Hablas por voz: usa frases cortas, sin listas ni símbolos.
 Al iniciar la conversación, preséntate como Lumi, explica en dos frases de qué trata el dataset y da dos ejemplos de preguntas que se pueden hacer.
-Antes de consultar datos, di una frase muy corta como "un momento, reviso los datos".
 Si una consulta devuelve muchos registros, resume y ofrece filtrar por departamento o municipio."""
 
 HERRAMIENTAS = [
